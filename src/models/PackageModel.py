@@ -1,150 +1,105 @@
-
-from pydantic import Field, validator
 from typing import List, Optional, Union, Literal
-from sdks.novavision.src.base.model import Package, Image, Inputs, Configs, Outputs, Response, Request, Output, Input, Config
+from pydantic import Field
+# Not: SDK yollarını kendi sisteminizdeki gerçek yollara göre güncelleyin
+from sdks.novavision.src.base.model import Config, Inputs, Outputs, Request, Response, Package, Configs
 
+# --- ALAN TİPLERİ ---
+class TextField(Config):
+    name: Literal["MetinAlani"] = "MetinAlani"
+    value: str = ""
+    type: Literal["string"] = "string"
+    field: Literal["textInput"] = "textInput"
 
-class InputImage(Input):
-    name: Literal["inputImage"] = "inputImage"
-    value: Union[List[Image], Image]
-    type: str = "object"
-
-    @validator("type", pre=True, always=True)
-    def set_type_based_on_value(cls, value, values):
-        value = values.get('value')
-        if isinstance(value, Image):
-            return "object"
-        elif isinstance(value, list):
-            return "list"
-
-    class Config:
-        title = "Image"
-
-
-class OutputImage(Output):
-    name: Literal["outputImage"] = "outputImage"
-    value: Union[List[Image],Image]
-    type: str = "object"
-
-    @validator("type", pre=True, always=True)
-    def set_type_based_on_value(cls, value, values):
-        value = values.get('value')
-        if isinstance(value, Image):
-            return "object"
-        elif isinstance(value, list):
-            return "list"
-
-    class Config:
-        title = "Image"
-
-
-class KeepSideFalse(Config):
-    name: Literal["False"] = "False"
-    value: Literal[False] = False
-    type: Literal["bool"] = "bool"
-    field: Literal["option"] = "option"
-
-    class Config:
-        title = "Disable"
-
-
-class KeepSideTrue(Config):
-    name: Literal["True"] = "True"
-    value: Literal[True] = True
-    type: Literal["bool"] = "bool"
-    field: Literal["option"] = "option"
-
-    class Config:
-        title = "Enable"
-
-
-class KeepSideBBox(Config):
-    """
-        Rotate image without catting off sides.
-    """
-    name: Literal["KeepSide"] = "KeepSide"
-    value: Union[KeepSideTrue, KeepSideFalse]
-    type: Literal["object"] = "object"
-    field: Literal["dropdownlist"] = "dropdownlist"
-
-    class Config:
-        title = "Keep Sides"
-
-
-class Degree(Config):
-    """
-        Positive angles specify counterclockwise rotation while negative angles indicate clockwise rotation.
-    """
-    name: Literal["Degree"] = "Degree"
-    value: int = Field(ge=-359.0, le=359.0,default=0)
+class NumberField(Config):
+    name: Literal["SayiAlani"] = "SayiAlani"
+    value: float = 0.0
     type: Literal["number"] = "number"
     field: Literal["textInput"] = "textInput"
-    placeHolder: Literal["[-359, 359]"] = "[-359, 359]"
 
-    class Config:
-        title = "Angle"
-
-
-class PackageInputs(Inputs):
-    inputImage: InputImage
-
-
-class PackageConfigs(Configs):
-    degree: Degree
-    drawBBox: KeepSideBBox
-
-
-class PackageOutputs(Outputs):
-    outputImage: OutputImage
-
-
-class PackageRequest(Request):
-    inputs: Optional[PackageInputs]
-    configs: PackageConfigs
-
-    class Config:
-        json_schema_extra = {
-            "target": "configs"
-        }
-
-
-class PackageResponse(Response):
-    outputs: PackageOutputs
-
-
-class PackageExecutor(Config):
-    name: Literal["Package"] = "Package"
-    value: Union[PackageRequest, PackageResponse]
-    type: Literal["object"] = "object"
+# --- DROPDOWN SEÇENEKLERİ ---
+class Option1(Config):
+    name: Literal["Secenek1"] = "Secenek1"
+    field1: TextField  # 1. Tip
+    field2: NumberField # 2. Tip
+    value: Literal["Secenek1"] = "Secenek1"
+    type: Literal["string"] = "string"
     field: Literal["option"] = "option"
 
-    class Config:
-        title = "Package"
-        json_schema_extra = {
-            "target": {
-                "value": 0
-            }
-        }
+class Option2(Config):
+    name: Literal["Secenek2"] = "Secenek2"
+    field1: TextField
+    field2: NumberField
+    value: Literal["Secenek2"] = "Secenek2"
+    type: Literal["string"] = "string"
+    field: Literal["option"] = "option"
 
+# --- BAĞIMLI DROPDOWN ---
+class MyDependentDropdown(Config):
+    name: Literal["dependentDropdown"] = "dependentDropdown"
+    value: Union[Option1, Option2]
+    type: Literal["object"] = "object"
+    field: Literal["dependentDropdownlist"] = "dependentDropdownlist"
+
+class SharedConfigs(Configs):
+    dropdown_ayar: MyDependentDropdown
+
+# --- EXECUTOR 1 (1 Giriş, 1 Çıkış) ---
+class Ex1Inputs(Inputs):
+    in1: TextField
+
+class Ex1Outputs(Outputs):
+    out1: TextField
+
+class Ex1Request(Request):
+    inputs: Optional[Ex1Inputs]
+    configs: SharedConfigs
+
+class Ex1Response(Response):
+    outputs: Ex1Outputs
+
+# --- EXECUTOR 2 (2 Giriş, 2 Çıkış) ---
+class Ex2Inputs(Inputs):
+    in1: TextField
+    in2: NumberField
+
+class Ex2Outputs(Outputs):
+    out1: TextField
+    out2: NumberField
+
+class Ex2Request(Request):
+    inputs: Optional[Ex2Inputs]
+    configs: SharedConfigs
+
+class Ex2Response(Response):
+    outputs: Ex2Outputs
+
+# --- ANA YAPILANDIRMA ---
+class FirstExecutor(Config):
+    name: Literal["FirstExecutor"] = "FirstExecutor"
+    value: Union[Ex1Request, Ex1Response]
+    type: Literal["object"] = "object"
+    field: Literal["option"] = "option"
+    class Config:
+        schema_extra = {"target": {"value": 0}}
+
+class SecondExecutor(Config):
+    name: Literal["SecondExecutor"] = "SecondExecutor"
+    value: Union[Ex2Request, Ex2Response]
+    type: Literal["object"] = "object"
+    field: Literal["option"] = "option"
+    class Config:
+        schema_extra = {"target": {"value": 0}}
 
 class ConfigExecutor(Config):
     name: Literal["ConfigExecutor"] = "ConfigExecutor"
-    value: Union[PackageExecutor]
+    value: Union[FirstExecutor, SecondExecutor]
     type: Literal["executor"] = "executor"
     field: Literal["dependentDropdownlist"] = "dependentDropdownlist"
 
-    class Config:
-        title = "Task"
-        json_schema_extra = {
-            "target": "value"
-        }
-
-
 class PackageConfigs(Configs):
-    executor: ConfigExecutor
-
+    executor_secimi: ConfigExecutor
 
 class PackageModel(Package):
     configs: PackageConfigs
-    type: Literal["component"] = "component"
-    name: Literal["Package"] = "Package"
+    type: Literal["capsule"] = "capsule"
+    name: Literal["DemoPackage"] = "DemoPackage"
